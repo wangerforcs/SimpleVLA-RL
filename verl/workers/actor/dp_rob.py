@@ -143,7 +143,7 @@ class RobDataParallelPPOActor(BasePPOActor):
             input_ids_unpad, _ = self.process_tensor(input_ids, self.pad_token_id)
             attention_mask_unpad, _ = self.process_tensor(attention_mask, 0)
             
-            if self.config.vla == "openvla-oft":
+            if self.config.vla == "openvla-oft": # ?为什么还要再forward一次？这能保证两次运行是一样的吗
                 logits = self.actor_module(input_ids=input_ids_unpad,
                                         attention_mask=attention_mask_unpad,
                                         pixel_values=pixel_values,
@@ -151,7 +151,7 @@ class RobDataParallelPPOActor(BasePPOActor):
                                         )  # prevent model thinks we are generating
                 
                 assert self.actor_module.vocab_size == 32000
-                start_index = self.actor_module.vocab_size - 256 
+                start_index = self.actor_module.vocab_size - 256 #后256个是动作token的分布
                 logits = logits[..., -256-64:-64]  # Shape: [batch_size, seq_len, 256]
                 responses = responses - start_index
                 #assert (0<=responses<=255).all()
@@ -409,11 +409,11 @@ class RobDataParallelPPOActor(BasePPOActor):
         if self.config.use_proprio:
             select_keys.append("proprio")
         batch = data.select(batch_keys=select_keys).batch
-        assert self.config.ppo_micro_batch_size == 1
+        assert self.config.ppo_micro_batch_size == 1 #?写死1？
 
         # Split to make minibatch iterator for updating the actor
         # See PPO paper for details. https://arxiv.org/abs/1707.06347
-        dataloader = batch.split(self.config.ppo_mini_batch_size)
+        dataloader = batch.split(self.config.ppo_mini_batch_size) #用更小的batch更新
         metrics = {}
         for batch_idx, data in enumerate(dataloader):
             # split batch into micro_batches
@@ -423,7 +423,7 @@ class RobDataParallelPPOActor(BasePPOActor):
                 micro_batches, _ = rearrange_micro_batches(batch=mini_batch, max_token_len=max_token_len)
             else:
                 # split batch into micro_batches
-                micro_batches = mini_batch.split(self.config.ppo_micro_batch_size)
+                micro_batches = mini_batch.split(self.config.ppo_micro_batch_size) #再分成为1的micro batch?
 
             self.actor_optimizer.zero_grad()
 

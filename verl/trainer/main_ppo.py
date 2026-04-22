@@ -63,19 +63,20 @@ class RobRewardManager():
         reward_metrics={}
         reward_tensor = torch.zeros_like(data.batch['responses'], dtype=torch.float32) # batch * 64 * 56
         verifier_reward=torch.zeros_like(data.batch['responses'], dtype=torch.float32)
-        reward_tensor = reward_tensor.reshape((reward_tensor.shape[0],-1))
+        reward_tensor = reward_tensor.reshape((reward_tensor.shape[0],-1)) #就是batch个轨迹长度, (batch size, seq len)
         verifier_reward = verifier_reward.reshape((verifier_reward.shape[0],-1))
         
+        # 自回归的 总轨迹长度是动作token数(action_token_len)*finish step(按单步算)
         valid_response_length = data.batch['finish_step'] * self.config.actor_rollout_ref.model.action_token_len 
        
         if 'acc' in data.batch:
             # the separated rewards have been logged; now we add format correctness back for reward shaping
             #verifier_score = data.batch['acc'].cpu().numpy().tolist() + (0.0 * data.batch['format_correctness'].cpu().numpy()).tolist()
             verifier_score = data.batch['acc'].cpu().numpy().tolist()
-        else:
+        else: #二值奖励，成功1，失败0
             verifier_score, verifier_metrics, format_metrics, reward_format_metrics = self.verify(data)
             reward_metrics.update(verifier_metrics)
-        for i in range(verifier_reward.shape[0]):
+        for i in range(verifier_reward.shape[0]): #奖励只在轨迹的末尾
             verifier_reward[i,valid_response_length[i]-1] += verifier_score[i]
             
         reward_tensor_dict['gt_scores'] = verifier_reward

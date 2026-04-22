@@ -190,7 +190,7 @@ def compute_grpo_outcome_advantage(token_level_rewards: torch.Tensor,
             shape: (bs, response_length)
     """
     response_length = token_level_rewards.shape[-1]
-    scores = token_level_rewards.sum(dim=-1)
+    scores = token_level_rewards.sum(dim=-1) #计算每个batch的奖励和，应该就是1/0
 
     id2score = defaultdict(list)
     id2mean = {}
@@ -198,7 +198,7 @@ def compute_grpo_outcome_advantage(token_level_rewards: torch.Tensor,
 
     with torch.no_grad():
         bsz = scores.shape[0]
-        for i in range(bsz):
+        for i in range(bsz): #同一组的uid相等，这里其实又恢复成组了
             id2score[index[i]].append(scores[i])
         for idx in id2score:
             if len(id2score[idx]) == 1:
@@ -209,9 +209,9 @@ def compute_grpo_outcome_advantage(token_level_rewards: torch.Tensor,
                 id2std[idx] = torch.std(torch.tensor([id2score[idx]]))
             else:
                 raise ValueError(f"no score in prompt index: {idx}")
-        for i in range(bsz):
+        for i in range(bsz): #对组里的奖励归一化，成功的就是正advantage，失败的就是负advantage
             scores[i] = (scores[i] - id2mean[index[i]]) / (id2std[index[i]] + epsilon)
-        scores = scores.unsqueeze(-1).tile([1, response_length]) * eos_mask
+        scores = scores.unsqueeze(-1).tile([1, response_length]) * eos_mask #广播到每个token位置
 
     return scores, scores
 

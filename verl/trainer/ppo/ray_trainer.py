@@ -85,7 +85,7 @@ from verl.utils.torch_functional import masked_mean
 def apply_kl_penalty(data: DataProto, kl_ctrl: core_algos.AdaptiveKLController, kl_penalty='kl', action_token_len=7, action_chunks_len=8):
     responses = data.batch['responses']
     
-    traj_length = responses.size(1) * action_chunks_len  
+    traj_length = responses.size(1) * action_chunks_len #chunk数*chunk len就是总步数
     action_length = action_token_len  # next fix
     token_level_scores = data.batch['token_level_scores']
     batch_size = data.batch.batch_size[0]
@@ -546,6 +546,7 @@ class RayTrainer(object):
                             'pad_token_id': self.tokenizer.pad_token_id,
                         }
                         
+                        # rollout batch, 这里是每个task id都有batch?, 但是最后输出是tasks*sample个数的batch
                         gen_batch_output = self.actor_rollout_wg.generate_sequences(prompts=gen_batch)
                         
                         roll_batch = DataProto.concat(batch_lst)
@@ -557,7 +558,7 @@ class RayTrainer(object):
                     
                     # do accuracy filtering and score logging
                     with Timer(name='verify', text="{name}: {seconds:.1f} seconds") as timer:
-                        scores_tensor, reward_metrics, format_metrics, reward_format_metrics = self.reward_fn.verify(roll_batch)
+                        scores_tensor, reward_metrics, format_metrics, reward_format_metrics = self.reward_fn.verify(roll_batch) #验证算分
                         for k, v in reward_metrics.items():
                             metrics['train_verify_score/' + k].append(v)
                             
@@ -572,7 +573,7 @@ class RayTrainer(object):
                     # do accuracy filtering and score logging
                     with Timer(name='acc&trunc_filter', text="{name}: {seconds:.1f} seconds") as timer:
                         if self.config.data.filter_accuracy or self.config.data.filter_truncated:
-                            print(f"before filtering: {len(roll_batch)}")
+                            print(f"before filtering: {len(roll_batch)}") #过滤全成功/全失败的样本
                             filtered_roll_batch = self.filter(roll_batch.batch['acc'].unsqueeze(1), roll_batch, n_samples)
                             print(f"after filtering: {len(filtered_roll_batch)}")
                     metrics['timing/acc&trunc_filter'] += timer.last
@@ -630,7 +631,7 @@ class RayTrainer(object):
 
                 with Timer(name='adv', text="{name}: {seconds:.1f} seconds") as timer:
                     # directly reuse previously computed rewards; but with reward shaping
-                    reward_tensor_dict, reward_metrics = self.reward_fn(batch)
+                    reward_tensor_dict, reward_metrics = self.reward_fn(batch) #计算奖励 RobRewardManager
                     batch.batch['token_level_scores'] = reward_tensor_dict['all']
                     for k, v in reward_metrics.items():
                         metrics['train_reward/' + k] = v
@@ -766,7 +767,7 @@ class RayTrainer(object):
         """
         # First do accuracy filtering if enabled
         if self.config.data.filter_accuracy:
-            reward_matrix = reward_tensor.sum(-1).reshape(-1, n_samples)
+            reward_matrix = reward_tensor.sum(-1).reshape(-1, n_samples) #batch重新按照n_samples分组，计算每组的精度
             acc_tensor = torch.mean(reward_matrix, dim=-1)
             counts = Counter(acc_tensor.tolist())
             print("Accuracy distribution:", " ".join(f"{k:.2f}:{v}" for k, v in sorted(counts.items())))

@@ -521,7 +521,7 @@ class RobActorRolloutRefWorker(Worker):
             output.meta_info['max_token_len'] = self.config.rollout.log_prob_max_token_len_per_gpu
             output.meta_info['pad_token_id'] = self.tokenizer.pad_token_id
             old_log_probs = self.actor.compute_log_prob(data=output)
-            output.batch['old_log_probs'] = old_log_probs
+            output.batch['old_log_probs'] = old_log_probs #每个token的log prob, shape [bsz, seq_len]
 
         output = output.to('cpu')
 
